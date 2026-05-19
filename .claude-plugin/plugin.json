@@ -1,8 +1,0 @@
-{
-  "name": "agent-collab",
-  "version": "1.0.0",
-  "description": "OpenCode 智能体协作插件：支持中文提示词、模式 A/B/C 与审批门控",
-  "agents": "./agents",
-  "skills": "./skills",
-  "hooks": "./hooks/hooks.json"
-}
