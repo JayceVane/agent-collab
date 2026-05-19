@@ -145,9 +145,9 @@ bash scripts/mode-controller.sh status
 
 系统会触发以下技能：
 
-- **xie-zuo-zong-ru-kou**：统一处理协作启动、模式选择、任务拆解与审批门控
-- **git-zong-ru-kou**：统一处理 commit / push / merge 前置检查
-- **xie-zuo-fu-pan**：在收口阶段输出复盘总结
+- **collaboration**：统一处理协作启动、模式选择、任务拆解与审批门控
+- **git-gate**：统一处理 commit / push / merge 前置检查
+- **retrospective**：在收口阶段输出复盘总结
 
 ### 阶段推进
 

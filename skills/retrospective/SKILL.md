@@ -1,5 +1,5 @@
 ---
-name: xie-zuo-fu-pan
+name: retrospective
 description: 当协作完成后需要总结问题、提炼经验、输出改进建议时使用。聚焦流程优化，形成可复用的协作规则。
 version: 1.0.0
 ---

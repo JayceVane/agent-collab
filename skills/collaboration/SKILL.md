@@ -1,5 +1,5 @@
 ---
-name: xie-zuo-zong-ru-kou
+name: collaboration
 description: 当用户需要启动协作、选择模式、拆解任务、审批门控或阶段切换时使用。作为协作总入口，统一处理模式选择、任务分解与审批判断。
 version: 0.1.0
 ---

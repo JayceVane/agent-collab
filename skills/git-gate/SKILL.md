@@ -1,5 +1,5 @@
 ---
-name: git-zong-ru-kou
+name: git-gate
 description: 当用户需要处理 commit、push、merge 或统一的 Git 前置检查时使用。作为 Git 总入口，统一处理提交、远端同步与合并前检查。
 version: 0.1.0
 ---
