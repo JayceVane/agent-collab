@@ -21,6 +21,7 @@ New-Item -ItemType Directory -Path (Join-Path $OpenCodeDir "plugins\agent-collab
 Copy-Item -Recurse -Force (Join-Path $ScriptDir ".opencode\agents\*") (Join-Path $OpenCodeDir "agents\")
 Copy-Item -Recurse -Force (Join-Path $ScriptDir ".opencode\skills\*") (Join-Path $OpenCodeDir "skills\")
 Copy-Item -Recurse -Force (Join-Path $ScriptDir "plugin\*") (Join-Path $OpenCodeDir "plugins\agent-collab\")
+Copy-Item -Force (Join-Path $ScriptDir "agent-collab.config.json") (Join-Path $OpenCodeDir "agent-collab.config.json")
 
 Write-Host "已安装到 $OpenCodeDir"
 Write-Host "重启 OpenCode 或重新加载会话后生效。"

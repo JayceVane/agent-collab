@@ -58,11 +58,46 @@ cp -r agent-collab/.opencode/skills/* ~/.config/opencode/skills/
 
 ## 目录
 
+- `agent-collab.config.json` — 插件独立配置文件
 - `.opencode/agents/` — 6 个中文角色提示词（coordinator / planner / executor / reviewer / arbiter / reflector）
 - `.opencode/skills/` — 3 个技能入口（collaboration / git-gate / retrospective）
 - `plugin/` — OpenCode 原生 JS 插件（审批门控 + Git 保护自动拦截）
 - `scripts/` — 状态与模式控制辅助脚本（需 Bash）
 - `docs/` — 工程规范与使用文档
+
+## 配置文件
+
+安装后编辑项目目录下的 `.opencode/agent-collab.config.json`，可配置：
+
+### 智能体模型
+
+```json
+{
+  "agents": {
+    "coordinator": { "model": "deepseek-v4-pro" },
+    "executor": { "model": "gpt-5.4-mini" }
+  }
+}
+```
+
+填好 `model` 值后，该信息会注入到系统提示词中供 OpenCode 参考。
+
+### 工作流与 Git 规则
+
+```json
+{
+  "workflow": {
+    "default_mode": "A",
+    "default_approval_policy": "hybrid"
+  },
+  "git": {
+    "main_branch_protection": true,
+    "require_clean_checkout": true,
+    "block_on_pending_approvals": true,
+    "require_review_before_merge": true
+  }
+}
+```
 
 ## 工作流程
 
