@@ -1,127 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-STATE_FILE="${1:-.claude/agent-collab.local.md}"
+# FIX #4: 状态文件统一为 JSON 格式（与插件 index.js 的 agent-collab-state.json 一致）
+STATE_FILE="${1:-.opencode/agent-collab-state.json}"
 
-ac_has_field() {
-  local field="$1"
-  if [ ! -f "$STATE_FILE" ]; then
-    return 1
-  fi
+# ── JSON 读写辅助 ──────────────────────────────────────────────
+# 使用简单的 sed/node 解析，避免依赖 jq
 
-  sed -n '/^---$/,/^---$/p' "$STATE_FILE" | grep -qE "^${field}:"
+# 检查 node 是否可用（OpenCode 项目通常有 Node.js）
+has_node() {
+  command -v node >/dev/null 2>&1
 }
 
-ac_insert_field() {
-  local field="$1"
-  local value="$2"
-  if [ ! -f "$STATE_FILE" ]; then
-    return 1
-  fi
-
-  local tmp_file
-  tmp_file="$(mktemp)"
-  awk -v field="$field" -v value="$value" '
-    BEGIN { in_frontmatter=0; inserted=0 }
-    /^---$/ {
-      if (in_frontmatter==1 && !inserted) {
-        print field ": " value
-        inserted=1
-      }
-      in_frontmatter++
-      print
-      next
-    }
-    { print }
-  ' "$STATE_FILE" > "$tmp_file"
-  mv "$tmp_file" "$STATE_FILE"
-}
-
-ac_upsert_field() {
-  local field="$1"
-  local value="$2"
-  if ! ac_has_field "$field"; then
-    ac_insert_field "$field" "$value"
-    return 0
-  fi
-
-  local tmp_file
-  tmp_file="$(mktemp)"
-  awk -v field="$field" -v value="$value" '
-    BEGIN { in_frontmatter=0; changed=0 }
-    /^---$/ { in_frontmatter++; print; next }
-    in_frontmatter==1 && $0 ~ "^"field":" && !changed {
-      print field ": " value
-      changed=1
-      next
-    }
-    { print }
-  ' "$STATE_FILE" > "$tmp_file"
-  mv "$tmp_file" "$STATE_FILE"
-}
-
-ac_migrate_state() {
-  if [ ! -f "$STATE_FILE" ]; then
-    return 0
-  fi
-
-  ac_upsert_field enabled true
-  ac_upsert_field mode A
-
-  local phase
-  phase="$(ac_read_field phase)"
-  case "$phase" in
-    planning|executing|reviewing|completed) ;;
-    *) ac_upsert_field phase planning ;;
-  esac
-
-  ac_upsert_field approval_policy hybrid
-  ac_upsert_field pending_approvals "[]"
-  ac_upsert_field completed_tasks "[]"
-  ac_upsert_field active_agents "[]"
-  ac_upsert_field git_main_branch_protection true
-  ac_upsert_field git_require_clean_checkout true
-  ac_upsert_field git_block_on_pending_approvals true
-  ac_upsert_field git_require_review_before_merge true
-}
-
-# ── 初始化 ──────────────────────────────────────────────────────
-ac_init_state() {
-  if [ -f "$STATE_FILE" ]; then
-    ac_migrate_state
-    return 0
-  fi
-  mkdir -p "$(dirname "$STATE_FILE")"
-  cat > "$STATE_FILE" <<'EOF'
----
-enabled: true
-mode: A
-phase: planning
-approval_policy: hybrid
-pending_approvals: []
-completed_tasks: []
-active_agents: []
-git_main_branch_protection: true
-git_require_clean_checkout: true
-git_block_on_pending_approvals: true
-git_require_review_before_merge: true
----
-
-# 协作状态
-
-## 当前任务
-
-- 待初始化
-
-## 备注
-
-- 该文件用于本地协作状态记录
-- 建议加入版本控制忽略规则
-EOF
-}
-
-# ── 读取字段 ────────────────────────────────────────────────────
-# 从 YAML frontmatter 读取指定字段值
+# 读取 JSON 字段（标量值）
 # 用法: ac_read_field <字段名>
 ac_read_field() {
   local field="$1"
@@ -129,15 +20,23 @@ ac_read_field() {
     echo ""
     return 1
   fi
-  # 提取 --- 之间的内容，找到目标字段
-  sed -n '/^---$/,/^---$/p' "$STATE_FILE" \
-    | grep -E "^${field}:" \
-    | head -1 \
-    | sed "s/^${field}: *//"
+
+  if has_node; then
+    node -e "
+      try {
+        const d = JSON.parse(require('fs').readFileSync('$STATE_FILE','utf8'));
+        const v = d['${field}'];
+        if (Array.isArray(v)) { process.stdout.write(JSON.stringify(v)); }
+        else { process.stdout.write(String(v ?? '')); }
+      } catch { process.stdout.write(''); }
+    " 2>/dev/null
+  else
+    # 回退：简单 sed 解析（仅支持顶层标量）
+    sed -n "s/.*\"${field}\"[[:space:]]*:[[:space:]]*\"\\{0,1\\}\\([^,\"}\\]*\\)\"\\{0,1\\}.*/\\1/p" "$STATE_FILE" | head -1
+  fi
 }
 
-# ── 写入字段 ────────────────────────────────────────────────────
-# 更新 frontmatter 中指定字段值（标量）
+# 写入 JSON 字段（标量值）
 # 用法: ac_write_field <字段名> <新值>
 ac_write_field() {
   local field="$1"
@@ -146,11 +45,24 @@ ac_write_field() {
     echo "[agent-collab] 错误：状态文件不存在，请先初始化" >&2
     return 1
   fi
-  ac_upsert_field "$field" "$value"
+
+  if has_node; then
+    local tmp
+    tmp="$(mktemp)"
+    node -e "
+      const fs = require('fs');
+      const d = JSON.parse(fs.readFileSync('$STATE_FILE','utf8'));
+      d['${field}'] = '${value}';
+      fs.writeFileSync('$tmp', JSON.stringify(d, null, 2));
+    " 2>/dev/null
+    mv "$tmp" "$STATE_FILE"
+  else
+    echo "[agent-collab] 错误：需要 Node.js 来操作 JSON 状态文件" >&2
+    return 1
+  fi
 }
 
 # ── 追加审批项 ──────────────────────────────────────────────────
-# 在 pending_approvals 数组中添加一条审批记录
 # 用法: ac_add_approval <描述>
 ac_add_approval() {
   local desc="$1"
@@ -160,53 +72,46 @@ ac_add_approval() {
     echo "[agent-collab] 错误：状态文件不存在" >&2
     return 1
   fi
-  local tmp_file
-  tmp_file="$(mktemp)"
-  # 在 frontmatter 的 pending_approvals: [] 或已有元素后追加
-  awk -v desc="$desc" -v ts="$ts" '
-    BEGIN { in_fm=0; done=0 }
-    /^---$/ { in_fm++; next }
-    in_fm==1 && /^pending_approvals: *\[\]/ && !done {
-      print "pending_approvals:"
-      print "  - desc: \"" desc "\""
-      print "    status: pending"
-      print "    ts: " ts
-      done=1
-      next
-    }
-    in_fm==1 && /^pending_approvals:$/ && !done {
-      print $0
-      print "  - desc: \"" desc "\""
-      print "    status: pending"
-      print "    ts: " ts
-      done=1
-      next
-    }
-    { print }
-  ' "$STATE_FILE" > "$tmp_file"
-  mv "$tmp_file" "$STATE_FILE"
+
+  if has_node; then
+    local tmp
+    tmp="$(mktemp)"
+    node -e "
+      const fs = require('fs');
+      const d = JSON.parse(fs.readFileSync('$STATE_FILE','utf8'));
+      if (!d.pending_approvals) d.pending_approvals = [];
+      d.pending_approvals.push({ desc: \"${desc}\", status: 'pending', ts: '${ts}' });
+      fs.writeFileSync('$tmp', JSON.stringify(d, null, 2));
+    " 2>/dev/null
+    mv "$tmp" "$STATE_FILE"
+  else
+    echo "[agent-collab] 错误：需要 Node.js 来操作 JSON 状态文件" >&2
+    return 1
+  fi
 }
 
 # ── 解决审批项 ──────────────────────────────────────────────────
-# 将最早的 pending 审批项标记为 approved 或 rejected
 # 用法: ac_resolve_approval <approved|rejected>
 ac_resolve_approval() {
   local verdict="$1"
   if [ ! -f "$STATE_FILE" ]; then
     return 1
   fi
-  local tmp_file
-  tmp_file="$(mktemp)"
-  awk -v verdict="$verdict" '
-    BEGIN { in_fm=0; resolved=0 }
-    /^---$/ { in_fm++; next }
-    in_fm==1 && /status: pending/ && !resolved {
-      sub(/status: pending/, "status: " verdict)
-      resolved=1
-    }
-    { print }
-  ' "$STATE_FILE" > "$tmp_file"
-  mv "$tmp_file" "$STATE_FILE"
+
+  if has_node; then
+    local tmp
+    tmp="$(mktemp)"
+    node -e "
+      const fs = require('fs');
+      const d = JSON.parse(fs.readFileSync('$STATE_FILE','utf8'));
+      if (d.pending_approvals) {
+        const item = d.pending_approvals.find(i => i.status === 'pending');
+        if (item) item.status = '${verdict}';
+      }
+      fs.writeFileSync('$tmp', JSON.stringify(d, null, 2));
+    " 2>/dev/null
+    mv "$tmp" "$STATE_FILE"
+  fi
 }
 
 # ── 统计待审批数量 ──────────────────────────────────────────────
@@ -215,9 +120,18 @@ ac_pending_count() {
     echo 0
     return
   fi
-  local count
-  count="$(grep -c 'status: pending' "$STATE_FILE" 2>/dev/null || echo 0)"
-  echo "$count"
+
+  if has_node; then
+    node -e "
+      try {
+        const d = JSON.parse(require('fs').readFileSync('$STATE_FILE','utf8'));
+        const c = (d.pending_approvals || []).filter(i => i.status === 'pending').length;
+        process.stdout.write(String(c));
+      } catch { process.stdout.write('0'); }
+    " 2>/dev/null
+  else
+    echo 0
+  fi
 }
 
 # ── Git 状态辅助 ────────────────────────────────────────────────
@@ -256,8 +170,84 @@ ac_git_is_protected_branch() {
   esac
 }
 
+# ── 迁移 ──────────────────────────────────────────────────────
+ac_migrate_state() {
+  # 从旧的 .claude/agent-collab.local.md (YAML) 迁移到 JSON
+  local old_file=".claude/agent-collab.local.md"
+  if [ -f "$old_file" ] && [ ! -f "$STATE_FILE" ]; then
+    echo "[agent-collab] 检测到旧格式状态文件，正在迁移..."
+    ac_init_state
+    # 尝试从 YAML 读取关键字段并写入 JSON
+    if has_node; then
+      local mode_val
+      mode_val="$(sed -n 's/^mode: *//p' "$old_file" | head -1)"
+      [ -n "$mode_val" ] && ac_write_field mode "$mode_val"
+
+      local phase_val
+      phase_val="$(sed -n 's/^phase: *//p' "$old_file" | head -1)"
+      [ -n "$phase_val" ] && ac_write_field phase "$phase_val"
+
+      local policy_val
+      policy_val="$(sed -n 's/^approval_policy: *//p' "$old_file" | head -1)"
+      [ -n "$policy_val" ] && ac_write_field approval_policy "$policy_val"
+    fi
+    echo "[agent-collab] 迁移完成。旧文件保留在 $old_file"
+  fi
+}
+
+# ── 初始化 ──────────────────────────────────────────────────────
+ac_init_state() {
+  # 如果已存在则合并新字段（不覆盖）
+  if [ -f "$STATE_FILE" ] && has_node; then
+    local tmp
+    tmp="$(mktemp)"
+    node -e "
+      const fs = require('fs');
+      const defaults = {
+        enabled: true,
+        mode: 'A',
+        phase: 'planning',
+        approval_policy: 'hybrid',
+        pending_approvals: [],
+        completed_tasks: [],
+        active_agents: [],
+        git_main_branch_protection: true,
+        git_require_clean_checkout: true,
+        git_block_on_pending_approvals: true,
+        git_require_review_before_merge: true,
+      };
+      let d;
+      try { d = JSON.parse(fs.readFileSync('$STATE_FILE','utf8')); }
+      catch { d = {}; }
+      for (const [k, v] of Object.entries(defaults)) {
+        if (!(k in d)) d[k] = v;
+      }
+      fs.writeFileSync('$tmp', JSON.stringify(d, null, 2));
+    " 2>/dev/null
+    mv "$tmp" "$STATE_FILE"
+    return 0
+  fi
+
+  # 全新初始化
+  mkdir -p "$(dirname "$STATE_FILE")"
+  cat > "$STATE_FILE" <<'STATEOF'
+{
+  "enabled": true,
+  "mode": "A",
+  "phase": "planning",
+  "approval_policy": "hybrid",
+  "pending_approvals": [],
+  "completed_tasks": [],
+  "active_agents": [],
+  "git_main_branch_protection": true,
+  "git_require_clean_checkout": true,
+  "git_block_on_pending_approvals": true,
+  "git_require_review_before_merge": true
+}
+STATEOF
+}
+
 # ── 验证状态文件 ────────────────────────────────────────────────
-# 检查必要字段是否存在且合法，返回 0=有效 1=无效
 ac_validate_state() {
   if [ ! -f "$STATE_FILE" ]; then
     echo "[agent-collab] 状态文件不存在" >&2
@@ -304,10 +294,11 @@ ac_show_state() {
 
 # ── 入口 ────────────────────────────────────────────────────────
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  ac_migrate_state
   ac_init_state
 
   case "${2:-}" in
-    show)    ac_show_state    ;;
+    show)     ac_show_state    ;;
     validate) ac_validate_state ;;
   esac
 fi

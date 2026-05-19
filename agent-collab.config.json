@@ -4,28 +4,32 @@
 
   "agents": {
     "coordinator": {
-      "model": "",
+      "model": "zhipuai-coding-plan/glm-5.1",
       "description": "统筹多个智能体、判断模式、分派任务"
     },
     "planner": {
-      "model": "",
+      "model": "opencode-go/qwen3.6-plus",
       "description": "拆解需求、识别依赖与风险、输出执行方案"
     },
     "executor": {
-      "model": "",
+      "model": "zhipuai-coding-plan/glm-5.1",
       "description": "按已确认方案实现代码、测试或文档"
     },
     "reviewer": {
-      "model": "",
+      "model": "zhipuai-coding-plan/glm-5-turbo",
       "description": "审查代码质量、边界、风险和一致性"
     },
     "arbiter": {
-      "model": "",
+      "model": "zhipuai-coding-plan/glm-4.7",
       "description": "根据审批策略判断放行、阻断或需人工确认"
     },
     "reflector": {
-      "model": "",
+      "model": "opencode-go/kimi-k2.6",
       "description": "复盘协作过程、提炼经验、沉淀规则"
+    },
+    "learner": {
+      "model": "zhipuai-coding-plan/glm-5.1",
+      "description": "引导用户自主编码，提供思路提示，实现后复盘错误与知识点"
     }
   },
 

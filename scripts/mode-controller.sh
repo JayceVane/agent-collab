@@ -2,7 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-STATE_FILE=".claude/agent-collab.local.md"
+# FIX #4: 统一为 .opencode/agent-collab-state.json（与插件 index.js 一致）
+STATE_FILE=".opencode/agent-collab-state.json"
 
 source "$SCRIPT_DIR/state-persistence.sh" "$STATE_FILE" >/dev/null 2>&1 || true
 

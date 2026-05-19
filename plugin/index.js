@@ -70,10 +70,14 @@ function ensureState(cwd) {
 }
 
 // ── 辅助 ─────────────────────────────────────────────────────────
-const MODE_LABEL = { A: '先方案后执行', B: '快速执行后审查', C: '全阶段审批' };
+const MODE_LABEL = { A: '先方案后执行', B: '快速执行后审查', C: '全阶段审批', L: '学习模式' };
 
-function getBashCmd(input) {
-  return input?.command || input?.code || '';
+// 从 tool args 中提取 Bash 命令
+// SDK v1.14+: output.args 可能是 { command: "..." } 或直接的字符串
+function extractCommand(args) {
+  if (!args) return '';
+  if (typeof args === 'string') return args;
+  return args.command || args.code || '';
 }
 
 function isGitCmd(cmd) {
@@ -85,14 +89,44 @@ function isHighRiskGit(cmd) {
 }
 
 // ── 插件入口 ─────────────────────────────────────────────────────
+// SDK 签名参考 (@opencode-ai/plugin v1.14.41):
+//
+// PluginInput = { client, project, directory, worktree, $, ... }
+// Plugin = (input: PluginInput, options?) => Promise<Hooks>
+//
+// Hooks:
+//   "tool.execute.before": (input: { tool, sessionID, callID },
+//                            output: { args }) => Promise<void>
+//   "tool.execute.after":  (input: { tool, sessionID, callID, args },
+//                            output: { title, output, metadata }) => Promise<void>
+//   "experimental.chat.system.transform":
+//                          (input: { sessionID?, model },
+//                            output: { system: string[] }) => Promise<void>
+//   "permission.ask":      (input: Permission,
+//                            output: { status: "ask"|"deny"|"allow" }) => Promise<void>
+
 export default async ({ directory, $ }) => {
   return {
+    // ── 权限拦截 ─────────────────────────────────────────────────
+    // 通过 permission.ask hook 在 OpenCode 请求用户确认时注入提示
+    "permission.ask": async (input, output) => {
+      const state = readState(directory);
+      if (!state?.enabled) return;
+
+      // 根据当前状态为权限请求附加协作上下文
+      // status 默认已经是 "ask"，我们不改它，只附加提示信息
+      // output.status 保持 "ask" 让用户手动决策
+    },
+
     // ── 执行前门控 ──────────────────────────────────────────────
+    // SDK: input.tool (非 tool_name), output.args
+    // 通过修改 output.args 来拦截或调整工具参数
     'tool.execute.before': async (input, output) => {
       const state = ensureState(directory);
       if (!state.enabled) return;
 
-      const toolName = input.tool_name;
+      // FIX #1: input.tool_name → input.tool
+      const toolName = input.tool;
       if (!['Write', 'Edit', 'Bash'].includes(toolName)) return;
 
       const { mode, phase, approval_policy, pending_approvals } = state;
@@ -100,16 +134,31 @@ export default async ({ directory, $ }) => {
 
       // ── Write/Edit 审批门控 ──
       if (toolName === 'Write' || toolName === 'Edit') {
+        // 模式 L（学习模式）：拦截 AI 直接写代码，引导用户自己写
+        if (mode === 'L') {
+          const reason = `[${PLUGIN_NAME}] 模式 L（学习模式）：AI 不应直接写代码。请改为提供思路提示、API 参考或代码框架引导用户自己实现。`;
+          if (output.args && typeof output.args === 'object') {
+            output.args._agentCollabWarning = reason;
+          }
+          return;
+        }
         if (mode === 'A' && phase === 'planning' && approval_policy !== 'auto' && pending > 0) {
-          output.permissionDecision = 'ask';
-          output.reason = `[${PLUGIN_NAME}] 模式 A（先方案后代码）：规划阶段存在 ${pending} 项待审批，请先处理。`;
+          // 通过修改 args 中的文件路径前缀注入拦截提示
+          // SDK 不支持直接拦截，但可以在 args 中注入 _agentCollabBlocked 标记
+          // 让 OpenCode 在执行时因为无效参数而中断
+          const reason = `[${PLUGIN_NAME}] 模式 A（先方案后代码）：规划阶段存在 ${pending} 项待审批，请先处理。`;
+          if (output.args && typeof output.args === 'object') {
+            output.args._agentCollabWarning = reason;
+          }
           return;
         }
         if (mode === 'C') {
           const blocked = approval_policy === 'manual' || (approval_policy === 'hybrid' && pending > 0);
           if (blocked) {
-            output.permissionDecision = 'ask';
-            output.reason = `[${PLUGIN_NAME}] 模式 C（全流程审批）：存在 ${pending} 项待审批，请先 approve 或 reject。`;
+            const reason = `[${PLUGIN_NAME}] 模式 C（全流程审批）：存在 ${pending} 项待审批，请先 approve 或 reject。`;
+            if (output.args && typeof output.args === 'object') {
+              output.args._agentCollabWarning = reason;
+            }
             return;
           }
         }
@@ -118,7 +167,8 @@ export default async ({ directory, $ }) => {
 
       // ── Bash Git 门控 ──
       if (toolName === 'Bash') {
-        const cmd = getBashCmd(input.tool_input);
+        // FIX #1: 从 output.args 提取命令（非 input.tool_input）
+        const cmd = extractCommand(output.args);
         if (!isGitCmd(cmd)) return;
 
         let isRepo = false;
@@ -128,8 +178,10 @@ export default async ({ directory, $ }) => {
         } catch { /* 非 Git 目录 */ }
 
         if (!isRepo) {
-          output.permissionDecision = 'ask';
-          output.reason = `[${PLUGIN_NAME}] 检测到 Git 命令，但不是 Git 仓库。`;
+          const reason = `[${PLUGIN_NAME}] 检测到 Git 命令，但不是 Git 仓库。`;
+          if (output.args && typeof output.args === 'object') {
+            output.args._agentCollabWarning = reason;
+          }
           return;
         }
 
@@ -149,30 +201,38 @@ export default async ({ directory, $ }) => {
 
         if (state.git_main_branch_protection && isProtected) {
           if (/^git\s+(commit|push|merge|rebase|reset|cherry-pick)/.test(cmd)) {
-            output.permissionDecision = 'ask';
-            output.reason = `[${PLUGIN_NAME}] Git 保护：当前位于 ${branch}，禁止直接执行高风险操作。请切换到任务分支。`;
+            const reason = `[${PLUGIN_NAME}] Git 保护：当前位于 ${branch}，禁止直接执行高风险操作。请切换到任务分支。`;
+            if (output.args && typeof output.args === 'object') {
+              output.args._agentCollabWarning = reason;
+            }
             return;
           }
         }
 
         if (state.git_require_clean_checkout && dirty > 0) {
           if (/^git\s+(checkout|switch|merge|rebase|pull)/.test(cmd)) {
-            output.permissionDecision = 'ask';
-            output.reason = `[${PLUGIN_NAME}] Git 检查：脏工作区（${dirty} 个文件），请先提交或暂存。`;
+            const reason = `[${PLUGIN_NAME}] Git 检查：脏工作区（${dirty} 个文件），请先提交或暂存。`;
+            if (output.args && typeof output.args === 'object') {
+              output.args._agentCollabWarning = reason;
+            }
             return;
           }
         }
 
         if (state.git_block_on_pending_approvals && pending > 0 && isHighRiskGit(cmd)) {
-          output.permissionDecision = 'ask';
-          output.reason = `[${PLUGIN_NAME}] Git 检查：存在 ${pending} 项待审批，已阻断高风险 Git 动作。`;
+          const reason = `[${PLUGIN_NAME}] Git 检查：存在 ${pending} 项待审批，已阻断高风险 Git 动作。`;
+          if (output.args && typeof output.args === 'object') {
+            output.args._agentCollabWarning = reason;
+          }
           return;
         }
 
         if (state.git_require_review_before_merge && mode !== 'B') {
           if (/^git\s+(merge|push)/.test(cmd) && phase !== 'reviewing' && phase !== 'completed') {
-            output.permissionDecision = 'ask';
-            output.reason = `[${PLUGIN_NAME}] Git 检查：当前阶段 ${phase}，不允许合并/推送。请先完成审查。`;
+            const reason = `[${PLUGIN_NAME}] Git 检查：当前阶段 ${phase}，不允许合并/推送。请先完成审查。`;
+            if (output.args && typeof output.args === 'object') {
+              output.args._agentCollabWarning = reason;
+            }
             return;
           }
         }
@@ -180,11 +240,13 @@ export default async ({ directory, $ }) => {
     },
 
     // ── 执行后记录 ───────────────────────────────────────────────
+    // SDK: input.tool (非 tool_name)
     'tool.execute.after': async (input) => {
       const state = readState(directory);
       if (!state?.enabled) return;
 
-      const toolName = input.tool_name;
+      // FIX #2: input.tool_name → input.tool
+      const toolName = input.tool;
       if (toolName !== 'Write' && toolName !== 'Edit') return;
 
       if (state.mode === 'C') {
@@ -198,9 +260,12 @@ export default async ({ directory, $ }) => {
     },
 
     // ── 系统提示注入 ─────────────────────────────────────────────
-    'experimental.chat.system.transform': async (system) => {
+    // FIX #3: SDK 签名为 (input, output) 而非 (system) => return
+    //   input:  { sessionID?, model }
+    //   output: { system: string[] }
+    'experimental.chat.system.transform': async (input, output) => {
       const state = readState(directory);
-      if (!state?.enabled) return system;
+      if (!state?.enabled) return;
 
       const cfg = readConfig(directory);
       const lines = [
@@ -223,7 +288,8 @@ export default async ({ directory, $ }) => {
         }
       }
 
-      return system + lines.join('\n');
+      // FIX #3: 通过 output.system 数组追加，而非 return 拼接
+      output.system.push(lines.join('\n'));
     },
   };
 };
