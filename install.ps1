@@ -16,9 +16,11 @@ if (-not (Test-Path $Target)) {
 
 New-Item -ItemType Directory -Path (Join-Path $OpenCodeDir "agents") -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $OpenCodeDir "skills") -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $OpenCodeDir "plugins\agent-collab") -Force | Out-Null
 
 Copy-Item -Recurse -Force (Join-Path $ScriptDir ".opencode\agents\*") (Join-Path $OpenCodeDir "agents\")
 Copy-Item -Recurse -Force (Join-Path $ScriptDir ".opencode\skills\*") (Join-Path $OpenCodeDir "skills\")
+Copy-Item -Recurse -Force (Join-Path $ScriptDir "plugin\*") (Join-Path $OpenCodeDir "plugins\agent-collab\")
 
 Write-Host "已安装到 $OpenCodeDir"
 Write-Host "重启 OpenCode 或重新加载会话后生效。"

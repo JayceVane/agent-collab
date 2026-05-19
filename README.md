@@ -60,7 +60,8 @@ cp -r agent-collab/.opencode/skills/* ~/.config/opencode/skills/
 
 - `.opencode/agents/` — 6 个中文角色提示词（coordinator / planner / executor / reviewer / arbiter / reflector）
 - `.opencode/skills/` — 3 个技能入口（collaboration / git-gate / retrospective）
-- `scripts/` — 状态与模式控制辅助脚本（需 Bash，Windows 下用 Git Bash 或 WSL）
+- `plugin/` — OpenCode 原生 JS 插件（审批门控 + Git 保护自动拦截）
+- `scripts/` — 状态与模式控制辅助脚本（需 Bash）
 - `docs/` — 工程规范与使用文档
 
 ## 工作流程

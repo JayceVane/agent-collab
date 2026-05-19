@@ -16,9 +16,11 @@ fi
 
 mkdir -p "$OPENCODE_DIR/agents"
 mkdir -p "$OPENCODE_DIR/skills"
+mkdir -p "$OPENCODE_DIR/plugins/agent-collab"
 
 cp -r "$SCRIPT_DIR/.opencode/agents/"* "$OPENCODE_DIR/agents/"
 cp -r "$SCRIPT_DIR/.opencode/skills/"* "$OPENCODE_DIR/skills/"
+cp -r "$SCRIPT_DIR/plugin/"* "$OPENCODE_DIR/plugins/agent-collab/"
 
 echo "已安装到 $OPENCODE_DIR"
 echo "重启 OpenCode 或重新加载会话后生效。"

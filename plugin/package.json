@@ -1,0 +1,8 @@
+{
+  "name": "agent-collab",
+  "version": "1.0.0",
+  "description": "OpenCode 智能体协作插件 — 审批门控与 Git 保护",
+  "type": "module",
+  "main": "index.js",
+  "keywords": ["opencode", "agent", "collaboration", "approval", "git"]
+}
