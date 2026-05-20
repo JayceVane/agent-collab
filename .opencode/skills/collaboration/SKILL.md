@@ -23,6 +23,7 @@ version: 0.2.0
 4. 审批判断统一依据状态文件与审批策略，不重复分散判断。
 5. review-before-merge 是硬规则，未通过不得进入合并阶段。
 6. 输出必须包含当前模式、当前阶段、下一步动作与阻塞项。
+7. 审核通过后，协调者应更新 `.opencode/agent-collab-state.json` 中 `auto_commit` 为 `true`，确保变更文件被自动提交。
 
 ## 输出要求
 

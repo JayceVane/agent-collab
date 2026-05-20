@@ -1,35 +1,92 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "agent-collab 插件配置文件 — 修改后重启 OpenCode 生效",
 
   "agents": {
     "coordinator": {
       "model": "zhipuai-coding-plan/glm-5.1",
-      "description": "统筹多个智能体、判断模式、分派任务"
+      "description": "统筹多个智能体、判断模式、分派任务",
+      "mode": "primary",
+      "color": "#3B82F6",
+      "hidden": false,
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "git *": "allow",
+          "*": "deny"
+        }
+      }
     },
     "planner": {
       "model": "opencode-go/qwen3.6-plus",
-      "description": "拆解需求、识别依赖与风险、输出执行方案"
+      "description": "拆解需求、识别依赖与风险、输出执行方案",
+      "mode": "subagent",
+      "color": "#8B5CF6",
+      "hidden": false,
+      "permission": {
+        "edit": "deny",
+        "bash": "deny"
+      }
     },
     "executor": {
       "model": "zhipuai-coding-plan/glm-5.1",
-      "description": "按已确认方案实现代码、测试或文档"
+      "description": "按已确认方案实现代码、测试或文档",
+      "mode": "subagent",
+      "color": "#10B981",
+      "hidden": false,
+      "permission": {
+        "edit": "ask",
+        "bash": "ask"
+      }
     },
     "reviewer": {
       "model": "zhipuai-coding-plan/glm-5-turbo",
-      "description": "审查代码质量、边界、风险和一致性"
+      "description": "审查代码质量、边界、风险和一致性",
+      "mode": "subagent",
+      "color": "#F59E0B",
+      "hidden": false,
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "git diff *": "allow",
+          "git log *": "allow",
+          "git show *": "allow",
+          "*": "deny"
+        }
+      }
     },
     "arbiter": {
       "model": "zhipuai-coding-plan/glm-4.7",
-      "description": "根据审批策略判断放行、阻断或需人工确认"
+      "description": "根据审批策略判断放行、阻断或需人工确认",
+      "mode": "subagent",
+      "color": "#EF4444",
+      "hidden": true,
+      "permission": {
+        "edit": "deny",
+        "bash": "deny"
+      }
     },
     "reflector": {
       "model": "opencode-go/kimi-k2.6",
-      "description": "复盘协作过程、提炼经验、沉淀规则"
+      "description": "复盘协作过程、提炼经验、沉淀规则",
+      "mode": "subagent",
+      "color": "#14B8A6",
+      "hidden": false,
+      "permission": {
+        "edit": "deny",
+        "bash": "deny"
+      }
     },
     "learner": {
       "model": "zhipuai-coding-plan/glm-5.1",
-      "description": "引导用户自主编码，提供思路提示，实现后复盘错误与知识点"
+      "description": "引导用户自主编码，提供思路提示，实现后复盘错误与知识点",
+      "mode": "primary",
+      "color": "#8B5CF6",
+      "hidden": false,
+      "permission": {
+        "edit": "deny",
+        "bash": "ask"
+      }
     }
   },
 

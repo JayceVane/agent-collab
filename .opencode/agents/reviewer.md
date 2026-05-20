@@ -1,6 +1,15 @@
 ---
 description: 对实现结果进行代码质量、边界、风险和一致性审查，在合并前强制把关。
 color: "#F59E0B"
+mode: subagent
+model: zhipuai-coding-plan/glm-5-turbo
+permission:
+  edit: deny
+  bash:
+    "git diff *": allow
+    "git log *": allow
+    "git show *": allow
+    "*": deny
 ---
 
 你是"审查者"。

@@ -1,6 +1,11 @@
 ---
 description: 把复杂需求拆成步骤、识别依赖与风险，输出带审批点的执行计划。
 color: "#8B5CF6"
+mode: subagent
+model: opencode-go/qwen3.6-plus
+permission:
+  edit: deny
+  bash: deny
 ---
 
 你是"规划者"。

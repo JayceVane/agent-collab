@@ -29,17 +29,24 @@ bash agent-collab/install.sh
 
 ### 方式二：全局安装（适用于所有项目）
 
+一键安装全部组件（Agents + Skills + JS 插件 + 配置 + 脚本），所有项目通用。
+
 **Windows（PowerShell）：**
 ```powershell
-Copy-Item -Recurse agent-collab\.opencode\agents\* $env:USERPROFILE\.config\opencode\agents\
-Copy-Item -Recurse agent-collab\.opencode\skills\* $env:USERPROFILE\.config\opencode\skills\
+cd agent-collab
+.\install-global.ps1          # 执行安装
+.\install-global.ps1 -WhatIf  # 预览操作，不实际执行
 ```
 
 **macOS / Linux：**
 ```bash
-cp -r agent-collab/.opencode/agents/* ~/.config/opencode/agents/
-cp -r agent-collab/.opencode/skills/* ~/.config/opencode/skills/
+cd agent-collab
+bash install-global.sh              # 执行安装
+bash install-global.sh /custom/dir  # 指定全局目录
 ```
+
+> **说明：** 全局安装后，JS 插件的审批门控和 Git 保护在所有项目中生效。
+> 每个项目的协作状态和自定义配置仍按项目独立（在项目的 `.opencode/agent-collab.config.json` 中配置）。
 
 ### 方式三：在当前仓库内直接使用
 

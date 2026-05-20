@@ -21,6 +21,7 @@ version: 0.1.0
 3. `main/master` 受保护；脏工作区、待审批项、未审查完成时阻断高风险动作。
 4. commit / push / merge 的判断结果统一输出，不拆成多个重复入口。
 5. 必须给出回退建议与下一步动作。
+6. 审核通过后，先更新 `.opencode/agent-collab-state.json` 中 `auto_commit` 为 `true`，再执行 git add 和 git commit。
 
 ## 输出要求
 

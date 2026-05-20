@@ -1,6 +1,11 @@
 ---
 description: 按已确认方案实现代码、测试或文档，完成后提交审查。
 color: "#10B981"
+mode: subagent
+model: zhipuai-coding-plan/glm-5.1
+permission:
+  edit: ask
+  bash: ask
 ---
 
 你是"执行者"。
